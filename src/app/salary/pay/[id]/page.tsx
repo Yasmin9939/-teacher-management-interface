@@ -1,53 +1,60 @@
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';
-import { useTeachers } from '@/lib/TeacherContext';
+import { useTeachers, Teacher, AttendanceRecord } from '@/lib/TeacherContext';
 import QRCode from 'react-qr-code';
 import { useEffect, useState } from 'react';
 
 export default function PayTeacherPage() {
   const { id } = useParams();
-  const { teachers } = useTeachers();
+  const { teachers, payTeacher, getPaymentRecord } = useTeachers();
   const router = useRouter();
-  const [teacher, setTeacher] = useState<any>(null);
+
+  // State now typed as Teacher or null
+  const [teacher, setTeacher] = useState<Teacher | null>(null);
 
   useEffect(() => {
-    const found = teachers.find(t => t.id === id);
+    // Find and set the typed Teacher object
+    const found = teachers.find((t) => t.id === id) ?? null;
     setTeacher(found);
   }, [id, teachers]);
 
-  if (!teacher) return <p className="p-4">Loading...</p>;
+  if (!teacher) {
+    return <p className="p-4">Loading...</p>;
+  }
 
-  const presentDays = teacher.attendance.length;
-  const totalDays = 30;
-  const payable = Math.floor((presentDays / totalDays) * teacher.salary);
-  const upiLink = `upi://pay?pa=${teacher.upi}&pn=${encodeURIComponent(teacher.name)}&am=${payable}&cu=INR`;
+  // Filter attendance with a properly typed parameter
+  const presentDays = teacher.attendance.filter(
+    (a: AttendanceRecord) => a.present
+  ).length;
+
+  const due = Math.floor((presentDays / 30) * teacher.salary);
+  const { paidAmount } = getPaymentRecord(teacher.id);
+  const pending = Math.max(0, due - paidAmount);
+
+  const upiLink = [
+    `upi://pay?pa=${teacher.upi}`,
+    `pn=${encodeURIComponent(teacher.name)}`,
+    `am=${pending}`,
+    `cu=INR`
+  ].join('&');
 
   const handleDone = () => {
-    const stored = localStorage.getItem('paidMap');
-    const paidMap = stored ? JSON.parse(stored) : {};
-    paidMap[teacher.id] = true;
-    localStorage.setItem('paidMap', JSON.stringify(paidMap));
-    router.push('/salary');
+    payTeacher(teacher.id);
+    router.replace('/salary');
+    router.refresh();
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
       <div className="bg-white p-6 rounded-lg shadow text-center space-y-4">
-        <h2 className="text-xl font-bold">Scan to Pay</h2>
+        <h2 className="text-xl font-bold">Scan to Pay ₹{pending}</h2>
         <QRCode value={upiLink} size={180} />
-        <div className="text-left text-sm space-y-1">
-          <p><strong>Name:</strong> {teacher.name}</p>
-          <p><strong>UPI:</strong> {teacher.upi}</p>
-          <p><strong>Base Salary:</strong> ₹{teacher.salary}</p>
-          <p><strong>Attendance:</strong> {presentDays} / {totalDays}</p>
-          <p><strong>Payable:</strong> ₹{payable}</p>
-        </div>
         <button
           onClick={handleDone}
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
         >
-          Done & Return to Salary Page
+          Done & Return
         </button>
       </div>
     </div>
