@@ -3,8 +3,6 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Teacher } from '../Types/teacher';
-
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
